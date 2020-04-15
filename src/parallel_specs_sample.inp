@@ -1,9 +1,15 @@
-# Sample script for parallel_specs
-# Sven Schreiber
+clear
+set verbose off
+
 # Reminder: 
 # everything goes into your currently active working dir!
 
-include parallel_specs.gfn --force
+if $sysinfo.hostname == "ati7"
+    set workdir "/home/at/git/parallel_specs"
+endif
+
+include "./src/parallel_specs.inp" --force
+#include parallel_specs.gfn --force
 
 ######### First example #####################################
 print "A trivial hello world example (start)"
@@ -31,6 +37,8 @@ printf "%s\n", bbresult[1].@resultkey
 printf "%s\n", bbresult[2].@resultkey
 print "End of the trivial hello world example"
 #############################################################
+
+
 
 ######### Second example ####################################
 /*

@@ -1,36 +1,45 @@
-# hansl code from package parallel_specs 0.1 (2018-06-22)
+function void display_workers_output (const int n_jobs,
+                                      const bool debugging)
+    /* Print results of workers. */
 
-# private functions
-
-function void display_PS_output (const int n_jobs,
-                                 bool debugging)
-    print "parallel_specs: MPI finished"
     loop i=1..n_jobs -q
-        printf "output for arg set %d:\n", i
-        string fname = sprintf("PS_output_%d.txt", i)
-        printf "%s", readfile(fname)
-        if !debugging
-            catch remove(fname)
-            if $error
-                print "parallel_specs warning: Problem removing temp file"
-            endif
-        endif
+        printf "Output for argument set %d:\n", i
+        string filename = sprintf("PS_output_%d.txt", i)
+        printf "%s", readfile(filename)
+
+        remove_file(filename, debugging)
     endloop
 end function
 
-function bundles create_PS_array (const int n_jobs,
-                                  strings filenames_bundles,
-                                  bool debugging)
-    print "parallel_specs: assembling bundles for return"
-    bundles B = array(n_jobs)
-    loop i=1..n_jobs -q
-        B[i] = bread(filenames_bundles[i])
-        if !debugging
-            remove(filenames_bundles[i])
+
+function void remove_file (const string filename,
+                           const bool debugging)
+    /* Remove temporary output file. */
+
+    if !debugging
+        catch remove(filename)
+        if $error
+            printf "Warning: Problem removing file %s", filename
         endif
+    endif
+end function
+
+
+function bundles create_output_array (const strings filenames_bundles,
+                                      const bool debugging)
+    /* Assemble the return array. */
+
+    print "Info: Assembling bundles for return."
+    bundles B = array(nelem(filenames_bundles))
+
+    loop foreach i filenames_bundles -q
+        B[i] = bread(filenames_bundles[i])
+        remove_file(filenames_bundles[i], debugging)
     endloop
+
     return B
 end function
+
 
 function scalar has_mpi_support (const int n_jobs)
     /* Check that MPI is installed. */
@@ -44,9 +53,9 @@ function scalar has_mpi_support (const int n_jobs)
 end function
 
 
-function scalar n_jobs_exceeds_nproc (const inp n_jobs)
+function scalar n_jobs_exceeds_nproc (const int n_jobs)
     /* */
-# FIXME: Why does this fail? We could loop over subsets of n_jobs
+    # FIXME: Why does this fail? We could loop over subsets of n_jobs
     if n_jobs > $sysinfo.nproc
         printf "Error: Number of bundles passed (%d) exceeds\n\
           available processors (%d), Aborting.", n_jobs, $sysinfo.nproc
@@ -58,34 +67,34 @@ end function
 
 
 function strings write_arg_bundles (const bundles ArgBundles)
-    /* Write out bundles containing the argument sets.
+/* Write out bundles containing the argument sets.
     return: array of filenames written. */
 
     strings filenames_bundles = array(nelem(ArgBundles))
-    loop foreach i ArgBundles -q
+    loop i=1..nelem(ArgBundles) -q
         filenames_bundles[i] = sprintf("PS_bundle_%d.xml", i)
         catch bwrite(ArgBundles[i], filenames_bundles[i])
-        
+
         if $error
             printf "Error: Failed to write bundle %d to\n\
               %s. Abort.", $i, filenames_bundles[i]
             return array(0)
         endif
     endloop
-    
+
     return filenames_bundles
 end function
 
 
 function scalar write_usercode (const string usercode,
-                                 const string filename_usercode)
+                                const string filename_usercode)
     /* write out script for execution via MPI. */
 
     catch outfile "@filename_usercode" --quiet
         print  "/* Script created by parallel_specs (gretl) */"
         print usercode
     end outfile
-    
+
     if $error
         printf "Error: Failed to write user code to %s", filename_usercode
         return 1
@@ -95,26 +104,59 @@ function scalar write_usercode (const string usercode,
 end function
 
 
+function void invoke_mpi (const int n_jobs,
+                          const string filename_usercode,
+                          const string name_application_bundle,
+                          const string name_arg_bundle)
+    /* Execute MPI part. */
+
+    print "Invoking MPI (this could take a while)"
+    flush
+
+    mpi
+        scalar process_id = $mpirank + 1
+        string outname = sprintf("PS_output_%d.txt", process_id)
+        
+        outfile "@outname" --quiet
+            string bunfile = sprintf("PS_bundle_%d.xml", process_id)
+            bundle @name_arg_bundle = bread(bunfile)
+
+            # end setup code, now idiosyncratic code
+            run "@filename_usercode"
+
+            # standard closing code
+            printf "Calc with arg set %d complete\n", process_id
+            scalar err = bwrite(@name_application_bundle, bunfile)
+            if err
+                printf "Error: %s", errmsg(err)
+            endif
+        end outfile
+    end mpi --np=n_jobs
+
+    print "Info: MPI jobs finished."
+end function
+
+
 function bundles parallel_specs (const string usercode "Code to execute",
                                  const bundles ArgBundles "Array of bundles holding job arguments",
-                                 string centralbname[null] "????",
+                                 string name_application_bundle[null] "Bundle to which arguments are passed",
                                  string name_arg_bundle[null] "Name of bundle holding job arguments",
                                  const bool debugging[0])
-    /* */
-    
-    bundle Bout = null
+    /* Parallel execution of code. */
+
+    bundles Bout = null
     scalar n_jobs = nelem(ArgBundles)
     string filename_usercode = "PS_script.inp"
-    
+
     if !has_mpi_support(n_jobs) || n_jobs_exceeds_nproc(n_jobs)
         return Bout
     endif
 
-    if !exists(centralbname)
-        string centralbname = "Mod"			# TODO: think about
+    if !exists(name_application_bundle)
+        string name_application_bundle = "Mod"		# TODO: more precise default?
     endif
     if !exists(name_arg_bundle)
-        string name_arg_bundle = "Container"		# TODO: think about - 'Parameter'
+        string name_arg_bundle = "Container"			# TODO: 'Arguments'?
     endif
 
     strings filenames_bundles = write_arg_bundles(ArgBundles)
@@ -122,39 +164,17 @@ function bundles parallel_specs (const string usercode "Code to execute",
         return Bout
     endif
 
-    if write_usercode(usercode, filename_usercode)
+    scalar err = write_usercode(usercode, filename_usercode)
+    if err
         return Bout
     endif
 
-    ## write out script for exec via MPI
-    print "Invoking MPI (this could take a while)"
-    flush
-    mpi
-        ## standard setup code
-        scalar i = $mpirank + 1
-        # again hardcoded file name!
-        string outname = sprintf("PS_output_%d.txt", i)
-        outfile @outname --write
-        # and again!
-        string bunfile = sprintf("PS_bundle_%d.xml", i)
-        bundle @name_arg_bundle = bread(bunfile)
-        ## end setup code, now idiosyncratic code
-        run PS_script.inp # hardcoded fname
-        # standard closing code
-        printf "Calc with arg set %d complete\n", i
-        err = bwrite(@centralbname, bunfile)
-        if err
-            print "error msg:"
-            eval errmsg(err)
-        endif
-        outfile --close
-    end mpi --np=n_jobs
-    # present the output from all workers
-    display_PS_output(n_jobs, debugging)
-    # assemble the return array
-    bundles bbout = create_PS_array(n_jobs, filenames_bundles, debugging)
-    if !debugging
-        remove("PS_script.inp")
-    endif
-    return bbout
+    invoke_mpi(n_jobs, filename_usercode, name_application_bundle, name_arg_bundle)
+    display_workers_output(n_jobs, debugging)
+    bundles Bout = create_output_array(filenames_bundles, debugging)
+    remove_file(filename_usercode, debugging)
+
+    return Bout
 end function
+
+
