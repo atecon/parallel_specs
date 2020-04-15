@@ -1,0 +1,99 @@
+# hansl code from package parallel_specs 0.1 (2018-06-22)
+
+# private functions
+
+function void display_PS_output (int N,
+                                 bool debugging)
+    print "parallel_specs: MPI finished"
+    loop i=1..N -q
+        printf "output for arg set %d:\n", i
+        string fname = sprintf("PS_output_%d.txt", i)
+        printf "%s", readfile(fname)
+        if !debugging
+            catch remove(fname)
+            if $error
+                print "parallel_specs warning: Problem removing temp file"
+            endif
+        endif
+    endloop
+end function
+
+function bundles create_PS_array (int N,
+                                  strings bfnames,
+                                  bool debugging)
+    print "parallel_specs: assembling bundles for return"
+    bundles B = array(N)
+    loop i=1..N -q
+        B[i] = bread(bfnames[i])
+        if !debugging
+            remove(bfnames[i])
+        endif
+    endloop
+    return B
+end function
+
+# public functions
+
+function bundles parallel_specs (const string usercode,
+                                 bundles bargs,
+                                 string centralbname[null],
+                                 string argbname[null],
+                                 bool debugging[0])
+    N = nelem(bargs)
+    if !$sysinfo.mpi
+        funcerr "No MPI support present, aborting"
+    elif N > $sysinfo.nproc
+        funcerr "Too many arg bundles, aborting"
+    endif
+    # apply defaults
+    if !exists(centralbname)
+        string centralbname = "Mod"
+    endif
+    if !exists(argbname)
+        string argbname = "Container"
+    endif
+    ## write out bundles containing the argument sets
+    # prepare the temp file names
+    strings bfnames = array(N)
+    loop i=1..N -q
+        # hardcoded file name!
+        bfnames[i] = sprintf("PS_bundle_%d.xml", i)
+        bwrite(bargs[i], bfnames[i])
+    endloop
+    ## write out script for exec via MPI
+    outfile "PS_script.inp" --quiet --write # hardcoded file name!
+    print  "/* Script created by parallel_specs (gretl) */"
+    print usercode
+    outfile --close
+    print "Finished writing bundles and MPI script"
+    print "Invoking MPI (this could take a while)"
+    flush
+    mpi
+        ## standard setup code
+        scalar i = $mpirank + 1
+        # again hardcoded file name!
+        string outname = sprintf("PS_output_%d.txt", i)
+        outfile @outname --write
+        # and again!
+        string bunfile = sprintf("PS_bundle_%d.xml", i)
+        bundle @argbname = bread(bunfile)
+        ## end setup code, now idiosyncratic code
+        run PS_script.inp # hardcoded fname
+        # standard closing code
+        printf "Calc with arg set %d complete\n", i
+        err = bwrite(@centralbname, bunfile)
+        if err
+            print "error msg:"
+            eval errmsg(err)
+        endif
+        outfile --close
+    end mpi --np=N
+    # present the output from all workers
+    display_PS_output(N, debugging)
+    # assemble the return array
+    bundles bbout = create_PS_array(N, bfnames, debugging)
+    if !debugging
+        remove("PS_script.inp")
+    endif
+    return bbout
+end function

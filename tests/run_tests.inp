@@ -1,0 +1,358 @@
+set verbose off
+clear
+
+
+scalar N_ROWS = 3
+scalar N_COLS = 3
+string FILENAME = "foo.gdt"		# dummy file
+
+include "./src/mat2data.inp" --force
+
+# external packages needed
+include assertion.gfn
+include string_utils.gfn
+
+
+nulldata 3 --preserve			# function requires some dataset
+
+
+print "Start with valid_matrix()"
+if valid_matrix(zeros(0,0)) != 0
+    stop
+endif
+
+if valid_matrix(zeros(1,1)) != 1
+    stop
+endif
+
+
+
+print "Start with valid_filename()"
+if valid_filename("") != 0
+    stop
+endif
+
+if valid_filename("___/") != 1
+    stop
+endif
+
+
+
+print "Start with get_column_name()"
+strings S = defarray("A", "B", "C")
+if get_column_name(S, 1) != "A" || get_column_name(S, 2) != "B" \
+  || get_column_name(S, 3) != "C"
+    stop
+endif
+
+strings S = array(0)
+if get_column_name(S, 1) != "v1" || get_column_name(S, 2) != "v2" \
+  || get_column_name(S, 3) != "v3"
+    stop
+endif
+
+
+
+print "Start with map_uniq_str_to_int_series()"
+strings S = defarray("R1", "R2", "R3")
+if map_uniq_str_to_int_series(S)[1] != 1 || map_uniq_str_to_int_series(S)[2] != 2 \
+  || map_uniq_str_to_int_series(S)[3] != 3
+    stop
+endif
+
+strings S = defarray("R1", "R2", "R1")
+if map_uniq_str_to_int_series(S)[1] != 1 || map_uniq_str_to_int_series(S)[2] != 2 \
+  || map_uniq_str_to_int_series(S)[1] != 1
+    stop
+endif
+
+strings S = defarray("R1", "R2", "R1", "R4")
+if sum(ok(map_uniq_str_to_int_series(S))) != 0
+    stop
+endif
+
+strings S = defarray("R1", "R2", "R3")
+series y = map_uniq_str_to_int_series(S)
+stringify(y, S)
+if y[1] != "R1" || y[2] != "R2" || y[3] != "R3"
+    stop
+endif
+delete y
+
+strings S = defarray("R1", "R2", "R1")
+series y = map_uniq_str_to_int_series(S)
+stringify(y, S)
+if y[1] != "R1" || y[2] != "R2" || y[3] != "R1"
+    stop
+endif
+delete y
+
+strings S = defarray("R1", "R2", "")
+series y = map_uniq_str_to_int_series(S)
+if sum(ok(y)) != 0
+    stop
+endif
+
+
+
+print "Start with store_list()"
+series foo = seq(1, $tmax)
+series foo2 = foo * 2
+list L = foo foo2
+string filename = "tmp.csv"
+string store_arguments = ""
+if store_list(L, filename, store_arguments) != 0
+    stop
+endif
+catch open @filename -p -q
+if $error
+    stop
+endif
+
+string filename = "/home/someweirdpath/tmp.csv"
+list L = foo foo2
+string store_arguments = ""
+if store_list(L, filename, store_arguments) != 1
+    stop
+endif
+
+
+
+print "Start with get_str_valued_series()"
+strings rnames = defarray("R1", "R2", "R3")
+series y
+series y = get_str_valued_series(rnames, &y)
+if y[1] != "R1" || y[2] != "R2" || y[3] != "R3"
+    stop
+endif
+delete y
+
+strings rnames = defarray("R1", "R2", "R1")
+series y
+series y = get_str_valued_series(rnames, &y)
+if y[1] != "R1" || y[2] != "R2" || y[3] != "R1"
+    stop
+endif
+
+
+
+print "Start with matrix_to_list()"
+matrix m = ones($tmax, 3) .* seq(2,4)
+list L = matrix_to_list(m, cnameget(m), rnameget(m))
+if nelem(L) != 3
+    stop
+endif
+if varnames(L)[1] != "v1" || varnames(L)[2] != "v2" || varnames(L)[3] != "v3"
+    stop
+endif
+if sum(L[1]) != 2*$tmax || sum(L[2]) != 3*$tmax || sum(L[3]) != 4*$tmax
+    stop
+endif
+
+
+strings S = defarray("A", "B", "C")
+cnameset(m, S)
+list L = matrix_to_list(m, cnameget(m), rnameget(m))
+if nelem(L) != 3
+    stop
+endif
+if varnames(L)[1] != "A" || varnames(L)[2] != "B" || varnames(L)[3] != "C"
+    stop
+endif
+if sum(L[1]) != 2*$tmax || sum(L[2]) != 3*$tmax || sum(L[3]) != 4*$tmax
+    stop
+endif
+
+
+strings rnames = defarray("R1", "R2", "R3")
+rnameset(m, rnames)
+list L = matrix_to_list(m, cnameget(m), rnameget(m))
+if nelem(L) != 4
+    stop
+endif
+if varnames(L)[1] != "A" || varnames(L)[2] != "B" || varnames(L)[3] != "C" \
+  || varnames(L)[4] != "row_label"
+    stop
+endif
+if sum(L[1]) != 2*$tmax || sum(L[2]) != 3*$tmax || sum(L[3]) != 4*$tmax
+    stop
+endif
+if row_label[1] != "R1" || row_label[2] != "R2" || row_label[3] != "R3"
+    stop
+endif
+
+
+
+print "Start with mat2data()"
+matrix m = mshape(seq(1,N_ROWS*N_COLS), N_ROWS, N_COLS)
+cnameset(m, "A B C")
+strings rnam = array(N_ROWS)
+loop i=1..N_ROWS -q
+    rnam[i] = sprintf("R%d", $i)
+endloop
+rnameset(m, rnam)
+m[3,1] = NA
+
+scalar ret = mat2data(m, FILENAME)
+if ret != 0
+    stop
+endif
+open @FILENAME -p -q
+
+if nelem(dataset) != 4
+    stop
+endif
+
+if varnames(dataset)[1] != "A"
+    stop
+endif
+if varnames(dataset)[2] != "B"
+    stop
+endif
+if varnames(dataset)[3] != "C"
+    stop
+endif
+if varnames(dataset)[4] != "row_label"
+    stop
+endif
+
+if $nobs != N_ROWS
+    stop
+endif
+if nobs(A) != N_ROWS - 1
+    stop
+endif
+if nobs(B) != N_ROWS || nobs(C) != N_ROWS || nobs(row_label) != N_ROWS
+    stop
+endif
+
+if nelem(strvals(row_label)) != 3
+    stop
+endif
+
+if strvals(row_label)[1] != "R1"
+    stop
+endif
+if strvals(row_label)[2] != "R2"
+    stop
+endif
+if strvals(row_label)[3] != "R3"
+    stop
+endif
+
+
+if sum(A) != 3
+    stop
+endif
+if sum(B) != 15
+    stop
+endif
+if sum(C) != 24
+    stop
+endif
+
+
+# without column labels
+cnameset(m, "")
+scalar ret = mat2data(m, FILENAME)
+if ret != 0
+    stop
+endif
+open @FILENAME -p -q
+
+if nelem(dataset) != 4
+    stop
+endif
+
+if varnames(dataset)[1] != "v1"
+    stop
+endif
+if varnames(dataset)[2] != "v2"
+    stop
+endif
+if varnames(dataset)[3] != "v3"
+    stop
+endif
+if varnames(dataset)[4] != "row_label"
+    stop
+endif
+
+if $nobs != 3
+    stop
+endif
+if nobs(v1) != 2
+    stop
+endif
+if nobs(v2) != 3
+    stop
+endif
+
+if nelem(strvals(row_label)) != 3
+    stop
+endif
+
+if strvals(row_label)[1] != "R1"
+    stop
+endif
+if strvals(row_label)[2] != "R2"
+    stop
+endif
+if strvals(row_label)[3] != "R3"
+    stop
+endif
+
+if sum(v1) != 3
+    stop
+endif
+if sum(v2) != 15
+    stop
+endif
+if sum(v3) != 24
+    stop
+endif
+
+
+# without row labels
+cnameset(m, "A B C")
+rnameset(m, "")
+
+scalar ret = mat2data(m, FILENAME)
+if ret != 0
+    stop
+endif
+open @FILENAME -p -q
+
+if nelem(dataset) != 3
+    stop
+endif
+
+if varnames(dataset)[1] != "A"
+    stop
+endif
+if varnames(dataset)[2] != "B"
+    stop
+endif
+if varnames(dataset)[3] != "C"
+    stop
+endif
+
+if $nobs != 3
+    stop
+endif
+if nobs(A) != 2 || nobs(B) != 3 || nobs(C) != 3
+    stop
+endif
+
+if sum(A) != 3
+    stop
+endif
+if sum(B) != 15
+    stop
+endif
+if sum(C) != 24
+    stop
+endif
+
+printf "\nInfo: All tests passed.\n"
+
+
