@@ -2,10 +2,10 @@
 
 # private functions
 
-function void display_PS_output (int N,
+function void display_PS_output (const int n_jobs,
                                  bool debugging)
     print "parallel_specs: MPI finished"
-    loop i=1..N -q
+    loop i=1..n_jobs -q
         printf "output for arg set %d:\n", i
         string fname = sprintf("PS_output_%d.txt", i)
         printf "%s", readfile(fname)
@@ -18,54 +18,115 @@ function void display_PS_output (int N,
     endloop
 end function
 
-function bundles create_PS_array (int N,
-                                  strings bfnames,
+function bundles create_PS_array (const int n_jobs,
+                                  strings filenames_bundles,
                                   bool debugging)
     print "parallel_specs: assembling bundles for return"
-    bundles B = array(N)
-    loop i=1..N -q
-        B[i] = bread(bfnames[i])
+    bundles B = array(n_jobs)
+    loop i=1..n_jobs -q
+        B[i] = bread(filenames_bundles[i])
         if !debugging
-            remove(bfnames[i])
+            remove(filenames_bundles[i])
         endif
     endloop
     return B
 end function
 
-# public functions
+function scalar has_mpi_support (const int n_jobs)
+    /* Check that MPI is installed. */
 
-function bundles parallel_specs (const string usercode,
-                                 bundles bargs,
-                                 string centralbname[null],
-                                 string argbname[null],
-                                 bool debugging[0])
-    N = nelem(bargs)
     if !$sysinfo.mpi
-        funcerr "No MPI support present, aborting"
-    elif N > $sysinfo.nproc
-        funcerr "Too many arg bundles, aborting"
+        printf "Error: No MPI support present, Aborting."
+        return 0
+    else
+        return 1
     endif
-    # apply defaults
-    if !exists(centralbname)
-        string centralbname = "Mod"
+end function
+
+
+function scalar n_jobs_exceeds_nproc (const inp n_jobs)
+    /* */
+# FIXME: Why does this fail? We could loop over subsets of n_jobs
+    if n_jobs > $sysinfo.nproc
+        printf "Error: Number of bundles passed (%d) exceeds\n\
+          available processors (%d), Aborting.", n_jobs, $sysinfo.nproc
+        return 1
+    else
+        return 0
     endif
-    if !exists(argbname)
-        string argbname = "Container"
-    endif
-    ## write out bundles containing the argument sets
-    # prepare the temp file names
-    strings bfnames = array(N)
-    loop i=1..N -q
-        # hardcoded file name!
-        bfnames[i] = sprintf("PS_bundle_%d.xml", i)
-        bwrite(bargs[i], bfnames[i])
+end function
+
+
+function strings write_arg_bundles (const bundles ArgBundles)
+    /* Write out bundles containing the argument sets.
+    return: array of filenames written. */
+
+    strings filenames_bundles = array(nelem(ArgBundles))
+    loop foreach i ArgBundles -q
+        filenames_bundles[i] = sprintf("PS_bundle_%d.xml", i)
+        catch bwrite(ArgBundles[i], filenames_bundles[i])
+        
+        if $error
+            printf "Error: Failed to write bundle %d to\n\
+              %s. Abort.", $i, filenames_bundles[i]
+            return array(0)
+        endif
     endloop
+    
+    return filenames_bundles
+end function
+
+
+function scalar write_usercode (const string usercode,
+                                 const string filename_usercode)
+    /* write out script for execution via MPI. */
+
+    catch outfile "@filename_usercode" --quiet
+        print  "/* Script created by parallel_specs (gretl) */"
+        print usercode
+    end outfile
+    
+    if $error
+        printf "Error: Failed to write user code to %s", filename_usercode
+        return 1
+    else
+        return 0
+    endif
+end function
+
+
+function bundles parallel_specs (const string usercode "Code to execute",
+                                 const bundles ArgBundles "Array of bundles holding job arguments",
+                                 string centralbname[null] "????",
+                                 string name_arg_bundle[null] "Name of bundle holding job arguments",
+                                 const bool debugging[0])
+    /* */
+    
+    bundle Bout = null
+    scalar n_jobs = nelem(ArgBundles)
+    string filename_usercode = "PS_script.inp"
+    
+    if !has_mpi_support(n_jobs) || n_jobs_exceeds_nproc(n_jobs)
+        return Bout
+    endif
+
+    if !exists(centralbname)
+        string centralbname = "Mod"			# TODO: think about
+    endif
+    if !exists(name_arg_bundle)
+        string name_arg_bundle = "Container"		# TODO: think about - 'Parameter'
+    endif
+
+    strings filenames_bundles = write_arg_bundles(ArgBundles)
+    if !nelem(filenames_bundles)
+        return Bout
+    endif
+
+    if write_usercode(usercode, filename_usercode)
+        return Bout
+    endif
+
     ## write out script for exec via MPI
-    outfile "PS_script.inp" --quiet --write # hardcoded file name!
-    print  "/* Script created by parallel_specs (gretl) */"
-    print usercode
-    outfile --close
-    print "Finished writing bundles and MPI script"
     print "Invoking MPI (this could take a while)"
     flush
     mpi
@@ -76,7 +137,7 @@ function bundles parallel_specs (const string usercode,
         outfile @outname --write
         # and again!
         string bunfile = sprintf("PS_bundle_%d.xml", i)
-        bundle @argbname = bread(bunfile)
+        bundle @name_arg_bundle = bread(bunfile)
         ## end setup code, now idiosyncratic code
         run PS_script.inp # hardcoded fname
         # standard closing code
@@ -87,11 +148,11 @@ function bundles parallel_specs (const string usercode,
             eval errmsg(err)
         endif
         outfile --close
-    end mpi --np=N
+    end mpi --np=n_jobs
     # present the output from all workers
-    display_PS_output(N, debugging)
+    display_PS_output(n_jobs, debugging)
     # assemble the return array
-    bundles bbout = create_PS_array(N, bfnames, debugging)
+    bundles bbout = create_PS_array(n_jobs, filenames_bundles, debugging)
     if !debugging
         remove("PS_script.inp")
     endif
