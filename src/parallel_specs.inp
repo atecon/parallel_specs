@@ -41,7 +41,7 @@ function bundles create_output_array (const strings filenames_bundles,
 end function
 
 
-function scalar has_mpi_support (const int n_jobs)
+function scalar has_mpi_support (void)
     /* Check that MPI is installed. */
 
     if !$sysinfo.mpi
@@ -148,7 +148,7 @@ function bundles parallel_specs (const string usercode "Code to execute",
     scalar n_jobs = nelem(ArgBundles)
     string filename_usercode = "PS_script.inp"
 
-    if !has_mpi_support(n_jobs) || n_jobs_exceeds_nproc(n_jobs)
+    if !has_mpi_support() || n_jobs_exceeds_nproc(n_jobs)
         return Bout
     endif
 
