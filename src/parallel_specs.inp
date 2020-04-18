@@ -3,9 +3,13 @@ function void display_workers_output (const int n_jobs,
     /* Print results of workers. */
 
     loop i=1..n_jobs -q
-        printf "Output for argument set %d:\n", i
+        printf "Info: Output for argument set %d:\n", i
+
         string filename = sprintf("PS_output_%d.txt", i)
-        printf "%s", readfile(filename)
+        catch printf "%s", readfile(filename)
+        if $error
+            printf "Error: Could not read file %s.", filename
+        endif
 
         remove_file(filename, debugging)
     endloop
@@ -27,13 +31,16 @@ end function
 
 function bundles create_output_array (const strings filenames_bundles,
                                       const bool debugging)
-    /* Assemble the return array. */
+    /* Assemble the returned array. */
 
     print "Info: Assembling bundles for return."
     bundles B = array(nelem(filenames_bundles))
 
     loop foreach i filenames_bundles -q
-        B[i] = bread(filenames_bundles[i])
+        catch B[i] = bread(filenames_bundles[i])
+        if $error
+            printf "Failed to read bundle file %s.\n", filenames_bundles[i]
+        endif
         remove_file(filenames_bundles[i], debugging)
     endloop
 
@@ -104,13 +111,13 @@ function scalar write_usercode (const string usercode,
 end function
 
 
-function void invoke_mpi (const int n_jobs,
+function void invoke_mpi (const int n_jobs[1::],
                           const string filename_usercode,
                           const string name_application_bundle,
                           const string name_arg_bundle)
     /* Execute MPI part. */
 
-    print "Invoking MPI (this could take a while)"
+    print "Info: Invoking MPI (this could take a while)"
     flush
 
     mpi
@@ -121,11 +128,10 @@ function void invoke_mpi (const int n_jobs,
             string bunfile = sprintf("PS_bundle_%d.xml", process_id)
             bundle @name_arg_bundle = bread(bunfile)
 
-            # end setup code, now idiosyncratic code
             run "@filename_usercode"
 
             # standard closing code
-            printf "Calc with arg set %d complete\n", process_id
+            printf "Info: Computation with arg set %d complete\n", process_id
             scalar err = bwrite(@name_application_bundle, bunfile)
             if err
                 printf "Error: %s", errmsg(err)
@@ -143,15 +149,19 @@ function bundles parallel_specs (const string usercode "Code to execute",
                                  string name_arg_bundle[null] "Name of bundle holding job arguments",
                                  const bool debugging[0])
     /* Parallel execution of code. */
+    # TODO: User may want to control the number of CPUs used.
 
     bundles Bout = null
     scalar n_jobs = nelem(ArgBundles)
     string filename_usercode = "PS_script.inp"
 
+    if !strlen(usercode)
+        printf "\nError: Pass some user code.\n"
+        return Bout
+    endif
     if !has_mpi_support() || n_jobs_exceeds_nproc(n_jobs)
         return Bout
     endif
-
     if !exists(name_application_bundle)
         string name_application_bundle = "Mod"		# TODO: more precise default?
     endif

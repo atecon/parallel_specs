@@ -55,7 +55,7 @@ First we create the relevant gretl/hansl script command file.
 In practice, better to have the file prepared beforehand, 
 and not write it inline with all these 'print' commands!) 
 */
-outfile code4PS.inp --quiet --write
+outfile code4PS.inp --quiet
   print "include SVAR.gfn"
   print "open sw_ch14.gdt --preserve" # --preserve needed here!!
   print "list X = LHUR ldiff(PUNEW)"
@@ -72,7 +72,7 @@ outfile code4PS.inp --quiet --write
   print "Mod.horizon = 36"
   printf "SVAR_restrict(&Mod, \"C\", 1, 2)\n"
   print "SVAR_estimate(&Mod)"
-outfile --close
+end outfile
 
 # specify and pack the different variants
 bundle b1 = defbundle("my_param", 3) 

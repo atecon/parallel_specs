@@ -1,14 +1,13 @@
 set verbose off
 clear
 
-#include "./src/parallel_specs.inp" --force
+include "./src/parallel_specs.inp" --force
 include assertion.gfn
-#include string_utils.gfn
 
 
 function void test_write_arg_bundles ()
     print "Start testing write_arg_bundles()"
-    
+
     bundles ArgBundles = null
     strings ret = write_arg_bundles(ArgBundles)
     assert_equal_num(nelem(ret), 0)
@@ -17,14 +16,14 @@ function void test_write_arg_bundles ()
     bundle B2 = defbundle("scal", 2, "mat", ones(2,3))
     bundles ArgBundles = defarray(B1, B2)
     strings ret = write_arg_bundles(ArgBundles)
-    
+
     assert_equal_num(nelem(ret), 2)
     assert_equal_str(ret[1], "PS_bundle_1.xml")
     assert_equal_str(ret[2], "PS_bundle_2.xml")
 
     assert_true(inbundle(bread("PS_bundle_1.xml"), scal))
     assert_true(inbundle(bread("PS_bundle_1.xml"), mat))
-    
+
     assert_true(inbundle(bread("PS_bundle_2.xml"), scal))
     assert_true(inbundle(bread("PS_bundle_2.xml"), mat))
 end function
@@ -32,21 +31,103 @@ test_write_arg_bundles()
 
 
 function void test_has_mpi_support ()
-    print "Start testing write_arg_bundles()"
+    print "Start testing has_mpi_support()"
 
-    
     if $sysinfo.mpi == TRUE
         assert_true(has_mpi_support())
     else
         assert_false(has_mpi_support())
     endif
-
 end function
 test_has_mpi_support()
 
 
+function void test_n_jobs_exceeds_nproc ()
+    printf "\nStart testing n_jobs_exceeds_nproc()"
+
+    scalar nproc = $sysinfo.nproc
+
+    assert_true(n_jobs_exceeds_nproc(nproc+1))
+    assert_false(n_jobs_exceeds_nproc(nproc))
+    assert_false(n_jobs_exceeds_nproc(nproc-1))
+end function
+test_n_jobs_exceeds_nproc()
+
+
+function void test_write_usercode ()
+    printf "\nStart testing write_usercode()"
+
+    string filename = "write_usercode_test.inp"
+    string code = "some nice code here\n New line to execute"
+
+    scalar ret = write_usercode(code, filename)
+    assert_false(ret)
+    string code_read = readfile(filename)
+    assert_true(strlen(code_read))
+end function
+test_write_usercode()
+
+
+#==========================================================
+# Sample script
+function void write_user_code (void)
+    outfile code4PS.inp --quiet
+        print "include SVAR.gfn"
+        print "open sw_ch14.gdt --preserve"
+        print "list X = LHUR ldiff(PUNEW)"
+        print "list Z = const"
+        print "scalar param = Container.my_param"
+        # The 'Container' name  must be announced to parallel_specs.
+        # Name 'my_param' must match the element key in each arg
+        # bundle (below).
+        printf "bundle Mod = SVAR_setup(\"C\", X, Z, param)\n"
+        print "Mod.horizon = 36"
+        printf "SVAR_restrict(&Mod, \"C\", 1, 2)\n"
+        print "SVAR_estimate(&Mod)"
+    end outfile
+end function
+
+function bundles specify_args_for_sample_code (void)
+    bundle b1 = defbundle("my_param", 3)
+    bundle b2 = defbundle("my_param", 4)
+    bundles ArgBundles = defarray(b1, b2)
+    
+    bundles Results = parallel_specs(readfile("code4PS.inp"), \
+      ArgBundles)
+      
+    return Results
+end function
+
+function void test_sample_output (const bundles Results)
+    printf "\n Start testing bundles we've got."
+    
+    loop foreach i Results -q
+        assert_true(nelem($i))
+    endloop
+end function
+
+
+write_user_code()
+bundles Results = specify_args_for_sample_code()
+test_sample_output(Results)
+
 
 
 printf "\nInfo: All tests passed.\n"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
