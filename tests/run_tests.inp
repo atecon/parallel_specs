@@ -5,8 +5,8 @@ include "./src/parallel_specs.inp" --force
 include assertion.gfn
 
 
-function void test_write_arg_bundles ()
-    print "Start testing write_arg_bundles()"
+function void test_write_arg_bundles (void)
+    print "Start testing write_arg_bundles(void)"
 
     bundles ArgBundles = null
     strings ret = write_arg_bundles(ArgBundles)
@@ -27,23 +27,23 @@ function void test_write_arg_bundles ()
     assert_true(inbundle(bread("PS_bundle_2.xml"), scal))
     assert_true(inbundle(bread("PS_bundle_2.xml"), mat))
 end function
-test_write_arg_bundles()
+test_write_arg_bundles(void)
 
 
-function void test_has_mpi_support ()
-    print "Start testing has_mpi_support()"
+function void test_has_mpi_support (void)
+    print "Start testing has_mpi_support(void)"
 
     if $sysinfo.mpi == TRUE
-        assert_true(has_mpi_support())
+        assert_true(has_mpi_support(void))
     else
-        assert_false(has_mpi_support())
+        assert_false(has_mpi_support(void))
     endif
 end function
-test_has_mpi_support()
+test_has_mpi_support(void)
 
 
-function void test_n_jobs_exceeds_nproc ()
-    printf "\nStart testing n_jobs_exceeds_nproc()"
+function void test_n_jobs_exceeds_nproc (void)
+    printf "\nStart testing n_jobs_exceeds_nproc(void)"
 
     scalar nproc = $sysinfo.nproc
 
@@ -51,11 +51,11 @@ function void test_n_jobs_exceeds_nproc ()
     assert_false(n_jobs_exceeds_nproc(nproc))
     assert_false(n_jobs_exceeds_nproc(nproc-1))
 end function
-test_n_jobs_exceeds_nproc()
+test_n_jobs_exceeds_nproc(void)
 
 
-function void test_write_usercode ()
-    printf "\nStart testing write_usercode()"
+function void test_write_usercode (void)
+    printf "\nStart testing write_usercode(void)"
 
     string filename = "write_usercode_test.inp"
     string code = "some nice code here\n New line to execute"
@@ -65,7 +65,7 @@ function void test_write_usercode ()
     string code_read = readfile(filename)
     assert_true(strlen(code_read))
 end function
-test_write_usercode()
+test_write_usercode(void)
 
 
 #==========================================================
@@ -91,24 +91,24 @@ function bundles specify_args_for_sample_code (void)
     bundle b1 = defbundle("my_param", 3)
     bundle b2 = defbundle("my_param", 4)
     bundles ArgBundles = defarray(b1, b2)
-    
+
     bundles Results = parallel_specs(readfile("code4PS.inp"), \
       ArgBundles)
-      
+
     return Results
 end function
 
 function void test_sample_output (const bundles Results)
     printf "\n Start testing bundles we've got."
-    
+
     loop foreach i Results -q
         assert_true(nelem($i))
     endloop
 end function
 
 
-write_user_code()
-bundles Results = specify_args_for_sample_code()
+write_user_code(void)
+bundles Results = specify_args_for_sample_code(void)
 test_sample_output(Results)
 
 
