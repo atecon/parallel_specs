@@ -37,7 +37,7 @@ bundle b5 = defbundle(argkey, "to say")
 bundles argarray = defarray(b1, b2, b3, b4, b5)
 
 # step 3: run in parallel
-bundles bbresult = parallel_specs(script, argarray, , , TRUE)
+bundles bbresult = parallel_specs(script, argarray, , , , TRUE)
 
 # step 4: print results
 loop i=1..nelem(bbresult)

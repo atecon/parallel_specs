@@ -111,7 +111,8 @@ function scalar write_usercode (const string usercode,
 end function
 
 
-function void invoke_mpi (const int n_jobs[1::],
+function void invoke_mpi (const int n_jobs_total,
+                            const int n_jobs_parallel,
                           const string filename_usercode,
                           const string name_output_bundle,
                           const string name_input_bundle)
@@ -120,26 +121,55 @@ function void invoke_mpi (const int n_jobs[1::],
     print "\nInfo: Invoking MPI (this could take a while).\n"
     flush
 
+    scalar n_rounds = ceil(n_jobs_total / n_jobs_parallel)
+    scalar offset_job_id = 0
+
+    eval n_jobs_parallel
+    execute_mpi(offset_job_id, n_jobs_parallel, filename_usercode, name_output_bundle, name_input_bundle)
+
+    stop
+
+    loop i=1..1 # n_rounds
+        printf "\nStart round %d of %d\n", $i, n_rounds
+        if i > 1
+            offset_job_id += n_jobs_parallel   # update process id
+        endif
+
+        execute_mpi(offset_job_id, n_jobs_parallel, filename_usercode, name_output_bundle, name_input_bundle)
+    endloop
+
+    print "Info: MPI jobs finished.\n"
+end function
+
+
+function void execute_mpi (const int offset_job_id[0::],
+                            const int n_jobs_parallel[1::],
+                          const string filename_usercode,
+                          const string name_output_bundle,
+                          const string name_input_bundle)
+    /* Actual execution of MPI job. */
+
     mpi
-        scalar process_id = $mpirank + 1
-        string outname = sprintf("PS_output_%d.txt", process_id)
+        scalar job_id = ($mpirank + 1) + offset_job_id
+        print job_id
+        stop
+
+        string outname = sprintf("PS_output_%d.txt", job_id)
 
         outfile "@outname" --quiet
-            string bunfile = sprintf("PS_bundle_%d.xml", process_id)
+            string bunfile = sprintf("PS_bundle_%d.xml", job_id)
             bundle @name_input_bundle = bread(bunfile)
 
             run "@filename_usercode"
 
             # standard closing code
-            printf "Info: Computation with argument set %d finished.\n", process_id
+            printf "Info: Computation with argument set %d finished.\n", job_id
             scalar err = bwrite(@name_output_bundle, bunfile)
             if err
                 printf "\nError: %s.\n", errmsg(err)
             endif
         end outfile
-    end mpi --np=n_jobs
-
-    print "Info: MPI jobs finished.\n"
+    end mpi --np=n_jobs_parallel     # --omp-threads=1 (default)
 end function
 
 
@@ -147,27 +177,37 @@ function bundles parallel_specs (const string usercode "Code to execute",
                                  const bundles ArgBundles "Array of bundles holding job arguments",
                                  string name_output_bundle[null] "Bundle to which arguments are passed",
                                  string name_input_bundle[null] "Name of bundle holding job arguments",
+                                 int n_jobs_parallel[-1] "No. of jobs to start parallel",
                                  const bool debugging[0])
     /* Parallel execution of code. */
     # TODO: User may want to control the number of CPUs used.
 
     bundles Bout = null
-    scalar n_jobs = nelem(ArgBundles)
+    scalar n_jobs_total = nelem(ArgBundles)
     string filename_usercode = "PS_script.inp"
 
     # Run some checks
-    if !n_jobs
+    if !nelem(ArgBundles)
         printf "\nError: Passed array of bundles is empty.\n"
          return Bout
     endif
+    if n_jobs_total < n_jobs_parallel
+        printf "\nWarning: Limit number of parallel jobs to %d.\n", n_jobs_total
+        scalar n_jobs_parallel = n_jobs_total
+    endif
+
+    if n_jobs_parallel == -1
+        scalar n_jobs_parallel = $sysinfo.mpimax
+    endif
+
     if !strlen(usercode)
         printf "\nError: Pass some user code.\n"
-         return Bout
+        return Bout
     endif
 
     # TODO drop func
     /*
-    if njobs_exceeds_nproc(n_jobs)     # FIXME: does not print the error
+    if njobs_exceeds_nproc(n_jobs_total)     # FIXME: does not print the error
          return Bout
     endif
     */
@@ -193,8 +233,8 @@ function bundles parallel_specs (const string usercode "Code to execute",
         return Bout
     endif
 
-    invoke_mpi(n_jobs, filename_usercode, name_output_bundle, name_input_bundle)
-    display_workers_output(n_jobs, debugging)
+    invoke_mpi(n_jobs_total, n_jobs_parallel, filename_usercode, name_output_bundle, name_input_bundle)
+    display_workers_output(n_jobs_total, debugging)
     bundles Bout = create_output_array(filenames_bundles, debugging)
     remove_file(filename_usercode, debugging)
 
