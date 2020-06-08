@@ -49,7 +49,7 @@ end function
 
 
 function scalar has_mpi_support (void)
-    /* Check that MPI is installed. */
+    /* Check that MPI is supported. */
 
     if !$sysinfo.mpi
         printf "Error: No MPI support present, Aborting."
@@ -144,19 +144,18 @@ end function
 
 
 function bundles parallel_specs (const string usercode "Code to execute",
-                                 const bundles ArgBundles "Array of bundles holding job arguments",
+                                 const bundles ArgBundles "Job arguments",
                                  string name_application_bundle[null] "Bundle to which arguments are passed",
                                  string name_arg_bundle[null] "Name of bundle holding job arguments",
-                                 const bool debugging[0])
+                                 const bool debugging[FALSE])
     /* Parallel execution of code. */
-    # TODO: User may want to control the number of CPUs used.
 
     bundles Bout = null
     scalar n_jobs = nelem(ArgBundles)
     string filename_usercode = "PS_script.inp"
 
     # Run some checks
-    if !n_jobs
+    if !nelem(ArgBundles)
         printf "\nError: Passed array of bundles is empty.\n"
         return Bout
     endif
@@ -188,7 +187,6 @@ function bundles parallel_specs (const string usercode "Code to execute",
     if err
         return Bout
     endif
-
 
     invoke_mpi(n_jobs, filename_usercode, name_application_bundle, name_arg_bundle)
     display_workers_output(n_jobs, debugging)
