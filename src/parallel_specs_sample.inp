@@ -1,36 +1,42 @@
 clear
 set verbose off
 
-# Reminder: 
+# Reminder:
 # everything goes into your currently active working dir!
 
 if $sysinfo.hostname == "ati7"
     set workdir "/home/at/git/parallel_specs"
 endif
 
-include "./src/parallel_specs.inp" --force
+catch include "./src/parallel_specs.inp" --force
+if $error
+  include "./parallel_specs.inp" --force
+endif
 #include parallel_specs.gfn --force
 
 ######### First example #####################################
 print "A trivial hello world example (start)"
 
-# preliminary: define internal transfer names 
+# preliminary: define internal transfer names
 string argkey = "s"
 string resultkey = "sout"
 
 # step 1: create the script code
 string line1 = "bundle Mod"
 string line2 = sprintf("\nMod.%s = Container.%s\n", \
-  resultkey, argkey) 
+  resultkey, argkey)
 
 # step 2
 # specify and pack the different variants
-bundle b1 = defbundle(argkey, "hello") 
+bundle b1 = defbundle(argkey, "hello")
 bundle b2 = defbundle(argkey, "world")
-bundles argarray = defarray(b1, b2)
+bundle b3 = defbundle(argkey, "i have")
+bundle b4 = defbundle(argkey, "much more")
+bundle b5 = defbundle(argkey, "to say")
+bundles argarray = defarray(b1, b2, b3, b4, b5)
 
 # step 3: run in parallel
-bundles bbresult = parallel_specs(line1 ~ line2, argarray)
+bundles bbresult = parallel_specs(line1 ~ line2, argarray, , , TRUE)
 
 # step 4: print results
 printf "%s\n", bbresult[1].@resultkey
@@ -42,9 +48,9 @@ print "End of the trivial hello world example"
 
 ######### Second example ####################################
 /*
-In this example we execute (part of an adapted version of) 
+In this example we execute (part of an adapted version of)
 the example script from the SVAR addon.
-The difference is that we run in parallel (with MPI) two 
+The difference is that we run in parallel (with MPI) two
 different specifications:
 1. with lag order 3
 2. with lag order 4
@@ -52,8 +58,8 @@ different specifications:
 
 /*
 First we create the relevant gretl/hansl script command file.
-In practice, better to have the file prepared beforehand, 
-and not write it inline with all these 'print' commands!) 
+In practice, better to have the file prepared beforehand,
+and not write it inline with all these 'print' commands!)
 */
 outfile code4PS.inp --quiet
   print "include SVAR.gfn"
@@ -62,20 +68,20 @@ outfile code4PS.inp --quiet
   print "list Z = const"
   print "scalar param = argcontainer.my_param"
   # The 'argcontainer' name  must be announced to parallel_specs.
-  # Name 'my_param' must match the element key in each arg 
+  # Name 'my_param' must match the element key in each arg
   # bundle (below).
-  
-  printf "bundle Mod = SVAR_setup(\"C\", X, Z, param)\n" 
+
+  printf "bundle Mod = SVAR_setup(\"C\", X, Z, param)\n"
   # If the name were not 'Mod' (the default), the name would have to
-  # be announced to parallel_specs as well. 
-  
+  # be announced to parallel_specs as well.
+
   print "Mod.horizon = 36"
   printf "SVAR_restrict(&Mod, \"C\", 1, 2)\n"
   print "SVAR_estimate(&Mod)"
 end outfile
 
 # specify and pack the different variants
-bundle b1 = defbundle("my_param", 3) 
+bundle b1 = defbundle("my_param", 3)
 # 'my_param' to match the code above
 bundle b2 = defbundle("my_param", 4)
 bundles argarray = defarray(b1, b2)

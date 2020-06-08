@@ -95,7 +95,7 @@ end function
 
 function scalar write_usercode (const string usercode,
                                 const string filename_usercode)
-    /* write out script for execution via MPI. */
+    /* Write out script for execution via MPI. */
 
     catch outfile "@filename_usercode" --quiet
         print  "/* Script created by parallel_specs (gretl) */"
@@ -123,7 +123,7 @@ function void invoke_mpi (const int n_jobs[1::],
     mpi
         scalar process_id = $mpirank + 1
         string outname = sprintf("PS_output_%d.txt", process_id)
-        
+
         outfile "@outname" --quiet
             string bunfile = sprintf("PS_bundle_%d.xml", process_id)
             bundle @name_arg_bundle = bread(bunfile)
@@ -155,13 +155,23 @@ function bundles parallel_specs (const string usercode "Code to execute",
     scalar n_jobs = nelem(ArgBundles)
     string filename_usercode = "PS_script.inp"
 
+    # Run some checks
+    if !n_jobs
+        printf "\nError: Passed array of bundles is empty.\n"
+        return Bout
+    endif
     if !strlen(usercode)
         printf "\nError: Pass some user code.\n"
         return Bout
     endif
-    if !has_mpi_support() || n_jobs_exceeds_nproc(n_jobs)
+    if n_jobs_exceeds_nproc(n_jobs)     # FIXME: does not print the error
         return Bout
     endif
+    if !has_mpi_support()
+        return Bout
+    endif
+
+    # Create default
     if !exists(name_application_bundle)
         string name_application_bundle = "Mod"		# TODO: more precise default?
     endif
@@ -179,6 +189,8 @@ function bundles parallel_specs (const string usercode "Code to execute",
         return Bout
     endif
 
+    n_jobs
+    stop
     invoke_mpi(n_jobs, filename_usercode, name_application_bundle, name_arg_bundle)
     display_workers_output(n_jobs, debugging)
     bundles Bout = create_output_array(filenames_bundles, debugging)
