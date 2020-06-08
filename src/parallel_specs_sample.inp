@@ -25,6 +25,7 @@ string resultkey = "sout"
 string line1 = "bundle Mod"
 string line2 = sprintf("\nMod.%s = Container.%s\n", \
   resultkey, argkey)
+string script = line1 ~ line2
 
 # step 2
 # specify and pack the different variants
@@ -36,14 +37,17 @@ bundle b5 = defbundle(argkey, "to say")
 bundles argarray = defarray(b1, b2, b3, b4, b5)
 
 # step 3: run in parallel
-bundles bbresult = parallel_specs(line1 ~ line2, argarray, , , TRUE)
+bundles bbresult = parallel_specs(script, argarray, , , TRUE)
 
 # step 4: print results
-printf "%s\n", bbresult[1].@resultkey
-printf "%s\n", bbresult[2].@resultkey
+loop i=1..nelem(bbresult)
+  print "huhu"
+  printf "Job %d: %s\n", i, bbresult[i]["@resultkey"]
+endloop
 print "End of the trivial hello world example"
 #############################################################
 
+stop
 
 
 ######### Second example ####################################
