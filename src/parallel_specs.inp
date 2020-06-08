@@ -189,8 +189,7 @@ function bundles parallel_specs (const string usercode "Code to execute",
         return Bout
     endif
 
-    n_jobs
-    stop
+
     invoke_mpi(n_jobs, filename_usercode, name_application_bundle, name_arg_bundle)
     display_workers_output(n_jobs, debugging)
     bundles Bout = create_output_array(filenames_bundles, debugging)

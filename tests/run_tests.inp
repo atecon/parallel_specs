@@ -6,7 +6,7 @@ include assertion.gfn
 
 
 function void test_write_arg_bundles (void)
-    print "Start testing write_arg_bundles(void)"
+    print "Start testing write_arg_bundles()"
 
     bundles ArgBundles = null
     strings ret = write_arg_bundles(ArgBundles)
@@ -27,23 +27,23 @@ function void test_write_arg_bundles (void)
     assert_true(inbundle(bread("PS_bundle_2.xml"), scal))
     assert_true(inbundle(bread("PS_bundle_2.xml"), mat))
 end function
-test_write_arg_bundles(void)
+test_write_arg_bundles()
 
 
 function void test_has_mpi_support (void)
-    print "Start testing has_mpi_support(void)"
+    print "Start testing has_mpi_support()"
 
     if $sysinfo.mpi == TRUE
-        assert_true(has_mpi_support(void))
+        assert_true(has_mpi_support())
     else
-        assert_false(has_mpi_support(void))
+        assert_false(has_mpi_support())
     endif
 end function
-test_has_mpi_support(void)
+test_has_mpi_support()
 
 
 function void test_n_jobs_exceeds_nproc (void)
-    printf "\nStart testing n_jobs_exceeds_nproc(void)"
+    printf "\nStart testing n_jobs_exceeds_nproc()"
 
     scalar nproc = $sysinfo.nproc
 
@@ -51,11 +51,11 @@ function void test_n_jobs_exceeds_nproc (void)
     assert_false(n_jobs_exceeds_nproc(nproc))
     assert_false(n_jobs_exceeds_nproc(nproc-1))
 end function
-test_n_jobs_exceeds_nproc(void)
+test_n_jobs_exceeds_nproc()
 
 
 function void test_write_usercode (void)
-    printf "\nStart testing write_usercode(void)"
+    printf "\nStart testing write_usercode()"
 
     string filename = "write_usercode_test.inp"
     string code = "some nice code here\n New line to execute"
@@ -65,7 +65,7 @@ function void test_write_usercode (void)
     string code_read = readfile(filename)
     assert_true(strlen(code_read))
 end function
-test_write_usercode(void)
+test_write_usercode()
 
 
 #==========================================================
@@ -87,6 +87,7 @@ function void write_user_code (void)
     end outfile
 end function
 
+
 function bundles specify_args_for_sample_code (void)
     bundle b1 = defbundle("my_param", 3)
     bundle b2 = defbundle("my_param", 4)
@@ -98,6 +99,7 @@ function bundles specify_args_for_sample_code (void)
     return Results
 end function
 
+
 function void test_sample_output (const bundles Results)
     printf "\n Start testing bundles we've got."
 
@@ -107,27 +109,9 @@ function void test_sample_output (const bundles Results)
 end function
 
 
-write_user_code(void)
-bundles Results = specify_args_for_sample_code(void)
+write_user_code()
+bundles Results = specify_args_for_sample_code()
 test_sample_output(Results)
 
 
-
 printf "\nInfo: All tests passed.\n"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
