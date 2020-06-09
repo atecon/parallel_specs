@@ -14,114 +14,149 @@ if $error
 endif
 #include parallel_specs.gfn --force
 
-######### First example #####################################
-print "A trivial hello world example (start)"
 
-# preliminary: define internal transfer names
-string argkey = "s"
-string resultkey = "sout"
-
-# step 1: create the script code
-string line1 = "bundle Mod"
-string line2 = sprintf("\nMod.%s = Container.%s\n", \
-  resultkey, argkey)
-
-# step 2
-# specify and pack the different variants
-bundle b1 = defbundle(argkey, "hello")
-bundle b2 = defbundle(argkey, "world")
-bundle b3 = defbundle(argkey, "i have")
-bundle b4 = defbundle(argkey, "much more")
-bundle b5 = defbundle(argkey, "to say")
-bundles argarray = defarray(b1, b2, b3, b4, b5)
-
-# step 3: run in parallel
-bundles bbresult = parallel_specs(line1 ~ line2, argarray, , , TRUE)
-
-# step 4: print results
-printf "%s\n", bbresult[1].@resultkey
-printf "%s\n", bbresult[2].@resultkey
-print "End of the trivial hello world example"
-#############################################################
+# Select which example to run
+scalar RUN_EXAMPLE = 2    # 1 to 4
 
 
+if RUN_EXAMPLE == 1
+  print "A trivial hello world example"
 
-######### Second example ####################################
-/*
-In this example we execute (part of an adapted version of)
-the example script from the SVAR addon.
-The difference is that we run in parallel (with MPI) two
-different specifications:
-1. with lag order 3
-2. with lag order 4
-*/
+  # preliminary: define internal transfer names
+  string argkey = "param"     # key of parameter value to be read
+  string appkey = "param"     # key of parameter value used within the application
 
-/*
-First we create the relevant gretl/hansl script command file.
-In practice, better to have the file prepared beforehand,
-and not write it inline with all these 'print' commands!)
-*/
-outfile code4PS.inp --quiet
-  print "include SVAR.gfn"
-  print "open sw_ch14.gdt --preserve" # --preserve needed here!!
-  print "list X = LHUR ldiff(PUNEW)"
-  print "list Z = const"
-  print "scalar param = argcontainer.my_param"
-  # The 'argcontainer' name  must be announced to parallel_specs.
-  # Name 'my_param' must match the element key in each arg
-  # bundle (below).
+  # step 1: create the script code
+  # Both 'PS_APPLICATION' and 'PS_ARGUMENTS' are argument names which are recommened to be used.
+  string line1 = "bundle PS_APPLICATION"
+  string line2 = sprintf("\nPS_APPLICATION.%s = PS_ARGUMENTS.%s\n", appkey, argkey)
+  string usercode = line1 ~ line2
 
-  printf "bundle Mod = SVAR_setup(\"C\", X, Z, param)\n"
-  # If the name were not 'Mod' (the default), the name would have to
-  # be announced to parallel_specs as well.
+  # step 2: specify and pack the different variants
+  bundle b1 = defbundle(argkey, "hello")
+  bundle b2 = defbundle(argkey, "world")
+  bundles argarray = defarray(b1, b2)
 
-  print "Mod.horizon = 36"
-  printf "SVAR_restrict(&Mod, \"C\", 1, 2)\n"
-  print "SVAR_estimate(&Mod)"
-end outfile
+  # step 3: run in parallel
+  bundles bbresult = parallel_specs(usercode, argarray)
 
-# specify and pack the different variants
-bundle b1 = defbundle("my_param", 3)
-# 'my_param' to match the code above
-bundle b2 = defbundle("my_param", 4)
-bundles argarray = defarray(b1, b2)
-string name_of_central_bundle = "Mod" # redundant, "Mod" is default
-string name_of_argument_bundle = "argcontainer"	# default would be "Container"
+  # step 4: print results
+  loop i=1..nelem(bbresult) -q
+    eval bbresult[i]
+  endloop
+  print "End of the trivial hello world example"
 
-# run in parallel
-bundles bbresult = parallel_specs(readfile("code4PS.inp"), \
-  argarray, name_of_central_bundle, name_of_argument_bundle)
 
-print "main script: eval the bundles we got"
-loop i=1..nelem(bbresult) -q
-  eval bbresult[i]
-endloop
-################################################################
+elif RUN_EXAMPLE == 2
+  print "A trivial hello world example (start) with user-specific argument names"
+  /*
+    In this example, we shos how to use your own argument names:
+    - 'PS_APPLICATION' is now called 'Mod'
+    - 'PS_ARGUMENTS' is now called 'Container'
+  */
 
-######## Third example (or 2b) #################################
-/* Uncomment the code portion below to get an impression of the
-speed gain in the second example, augmented with a bootstrap.
-This compares the speed of a single specification with two ones
-in parallel. (Should be roughly the same on two CPU cores.)
-*/
+  # preliminary: define internal transfer names
+  string argkey = "param"     # key of parameter value to be read
+  string appkey = "param"     # key of parameter value used within the application
 
-/*
-# reuse the code above
-string code = readfile("code4PS.inp")
-# add the bootstrap call
-code ~= "numfail = SVAR_boot(&Mod, 2000, 0.90)"
+  # step 1: create the script code
+  string line1 = "bundle Mod"
+  string line2 = sprintf("\nMod.%s = Container.%s\n", appkey, argkey)
+  string usercode = line1 ~ line2
 
-# run with a single spec
-set stopwatch
-argarray = defarray(b1)
-bbresult = parallel_specs(code, argarray, , name_of_argument_bundle)
-singlespec = $stopwatch
+  # step 2: specify and pack the different variants
+  bundle b1 = defbundle(argkey, "hello")
+  bundle b2 = defbundle(argkey, "world")
+  bundles argarray = defarray(b1, b2)
 
-# run with two specs
-argarray = defarray(b1, b2)
-bbresult = parallel_specs(code, argarray, , name_of_argument_bundle)
-twospecs = $stopwatch
+  # step 3: run in parallel -- note that the user-specific argument
+  # names need to be passed here
+  bundles bbresult = parallel_specs(usercode, argarray, "Mod", "Container")
 
-printf "Single vs. two specs time: %g, %g\n", singlespec, twospecs
-*/
-################################################################
+  # step 4: print results
+  loop i=1..nelem(bbresult) -q
+    eval bbresult[i]
+  endloop
+  print "End of the trivial hello world example"
+
+
+elif RUN_EXAMPLE == 3
+  /*
+  In this example we execute (part of an adapted version of)
+  the example script from the SVAR addon.
+  The difference is that we run in parallel (with MPI) two
+  different specifications:
+  1. with lag order 3
+  2. with lag order 4
+  */
+
+  /*
+  First we create the relevant gretl/hansl script command file.
+  In practice, better to have the file prepared beforehand,
+  and not write it inline with all these 'print' commands!)
+  */
+  outfile code4PS.inp --quiet
+    print "include SVAR.gfn"
+    print "open sw_ch14.gdt --preserve" # --preserve needed here!!
+    print "list X = LHUR ldiff(PUNEW)"
+    print "list Z = const"
+    print "scalar param = argcontainer.my_param"
+    # The 'argcontainer' name  must be announced to parallel_specs.
+    # Name 'my_param' must match the element key in each arg
+    # bundle (below).
+
+    printf "bundle Mod = SVAR_setup(\"C\", X, Z, param)\n"
+    # If the name were not 'Mod' (the default), the name would have to
+    # be announced to parallel_specs as well.
+
+    print "Mod.horizon = 36"
+    printf "SVAR_restrict(&Mod, \"C\", 1, 2)\n"
+    print "SVAR_estimate(&Mod)"
+  end outfile
+
+  # specify and pack the different variants
+  bundle b1 = defbundle("my_param", 3)
+  # 'my_param' to match the code above
+  bundle b2 = defbundle("my_param", 4)
+  bundles argarray = defarray(b1, b2)
+  string name_of_central_bundle = "Mod" # redundant, "Mod" is default
+  string name_of_argument_bundle = "argcontainer"	# default would be "Container"
+
+  # run in parallel
+  bundles bbresult = parallel_specs(readfile("code4PS.inp"), \
+    argarray, name_of_central_bundle, name_of_argument_bundle)
+
+  print "main script: eval the bundles we got"
+  loop i=1..nelem(bbresult) -q
+    eval bbresult[i]
+  endloop
+
+
+elif RUN_EXAMPLE == 4
+
+  ######## Third example (or 2b) #################################
+  /* Uncomment the code portion below to get an impression of the
+  speed gain in the second example, augmented with a bootstrap.
+  This compares the speed of a single specification with two ones
+  in parallel. (Should be roughly the same on two CPU cores.)
+  */
+
+  # reuse the code above
+  string code = readfile("code4PS.inp")
+  # add the bootstrap call
+  code ~= "numfail = SVAR_boot(&Mod, 2000, 0.90)"
+
+  # run with a single spec
+  set stopwatch
+  argarray = defarray(b1)
+  bbresult = parallel_specs(code, argarray, , name_of_argument_bundle)
+  singlespec = $stopwatch
+
+  # run with two specs
+  argarray = defarray(b1, b2)
+  bbresult = parallel_specs(code, argarray, , name_of_argument_bundle)
+  twospecs = $stopwatch
+
+  printf "Single vs. two specs time: %g, %g\n", singlespec, twospecs
+
+endif
