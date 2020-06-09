@@ -1,0 +1,11 @@
+author = Sven Schreiber, Allin Cottrell, Artur Tarassow
+email = svetosch@gmx.net
+version = 0.2
+date = 2020-06-09
+description = Parallel execution of differing specifications
+tags = C88
+min-version = 2020b
+public = parallel_specs
+data-requirement = no-data-ok
+help = parallel_specs_help.txt
+sample-script = parallel_specs_sample.inp
