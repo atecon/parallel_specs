@@ -1,5 +1,6 @@
 function void display_workers_output (const int n_jobs,
-                                      const bool debugging)
+                                      const bool debugging,
+                                      int *error)
     /* Print results of workers. */
 
     loop i=1..n_jobs -q
@@ -8,7 +9,8 @@ function void display_workers_output (const int n_jobs,
         string filename = sprintf("PS_output_%d.txt", i)
         catch printf "%s", readfile(filename)
         if $error
-            printf "Error: Could not read file %s.", filename
+            printf "\nError: Could not read file %s.\n", filename
+            scalar error = 1
         endif
 
         remove_file(filename, debugging)
@@ -30,7 +32,8 @@ end function
 
 
 function bundles create_output_array (const strings filenames_bundles,
-                                      const bool debugging)
+                                      const bool debugging,
+                                      int *error)
     /* Assemble the returned array. */
 
     print "Info: Assembling bundles for return."
@@ -39,7 +42,8 @@ function bundles create_output_array (const strings filenames_bundles,
     loop foreach i filenames_bundles -q
         catch B[i] = bread(filenames_bundles[i])
         if $error
-            printf "Failed to read bundle file %s.\n", filenames_bundles[i]
+            printf "\nFailed to read bundle file %s.\n", filenames_bundles[i]
+            scalar error = 1
         endif
         remove_file(filenames_bundles[i], debugging)
     endloop
@@ -48,44 +52,44 @@ function bundles create_output_array (const strings filenames_bundles,
 end function
 
 
-function scalar has_mpi_support (void)
+function void has_mpi_support (int *error)
     /* Check that MPI is supported. */
 
     if !$sysinfo.mpi
-        printf "Error: No MPI support present, Aborting."
-        return 0
-    else
-        return 1
+        printf "\nError: No MPI support present, Aborting.\n"
+        error = 1
     endif
 end function
 
 
-function scalar n_jobs_exceeds_nproc (const int n_jobs)
+function void n_jobs_exceeds_nproc (const int n_jobs,
+                                    int *error)
     /* */
     # FIXME: Why does this fail? We could loop over subsets of n_jobs
     if n_jobs > $sysinfo.nproc
         printf "Error: Number of bundles passed (%d) exceeds\n\
           available processors (%d), Aborting.", n_jobs, $sysinfo.nproc
-        return 1
-    else
-        return 0
+        scalar error = 1
     endif
 end function
 
 
-function strings write_arg_bundles (const bundles ArgBundles)
+function strings write_arg_bundles (const bundles ArgBundles,
+                                    int *error)
 /* Write out bundles containing the argument sets.
     return: array of filenames written. */
 
     strings filenames_bundles = array(nelem(ArgBundles))
+
     loop i=1..nelem(ArgBundles) -q
         filenames_bundles[i] = sprintf("PS_bundle_%d.xml", i)
-        catch bwrite(ArgBundles[i], filenames_bundles[i])
 
+        catch bwrite(ArgBundles[i], filenames_bundles[i])
         if $error
-            printf "Error: Failed to write bundle %d to\n\
-              %s. Abort.", $i, filenames_bundles[i]
-            return array(0)
+            printf "\nError: Failed to write bundle %d to\n\
+              %s. Abort.\n", $i, filenames_bundles[i]
+            scalar error = 1
+            return array(0)     # If one case fails, all fail - think about it
         endif
     endloop
 
@@ -94,8 +98,9 @@ end function
 
 
 function scalar write_usercode (const string usercode,
-                                const string filename_usercode)
-    /* Write out script for execution via MPI. */
+                                const string filename_usercode,
+                                int *error)
+    /* Write out script with user's code for execution via MPI. */
 
     catch outfile "@filename_usercode" --quiet
         print  "/* Script created by parallel_specs (gretl) */"
@@ -103,10 +108,8 @@ function scalar write_usercode (const string usercode,
     end outfile
 
     if $error
-        printf "Error: Failed to write user code to %s", filename_usercode
-        return 1
-    else
-        return 0
+        printf "\nError: Failed to write user code to %s.\n", filename_usercode
+        scalar error = 1
     endif
 end function
 
@@ -114,19 +117,20 @@ end function
 function void invoke_mpi (const int n_jobs[1::],
                           const string filename_usercode,
                           const string name_application_bundle,
-                          const string name_arg_bundle)
+                          const string name_argument_bundle,
+                          int *error)
     /* Execute MPI part. */
 
     print "Info: Invoking MPI (this could take a while)"
     flush
 
-    mpi
+    catch mpi
         scalar process_id = $mpirank + 1
         string outname = sprintf("PS_output_%d.txt", process_id)
 
         outfile "@outname" --quiet
             string bunfile = sprintf("PS_bundle_%d.xml", process_id)
-            bundle @name_arg_bundle = bread(bunfile)
+            bundle @name_argument_bundle = bread(bunfile)
 
             run "@filename_usercode"
 
@@ -139,17 +143,22 @@ function void invoke_mpi (const int n_jobs[1::],
         end outfile
     end mpi --np=n_jobs
 
-    print "Info: MPI jobs finished."
+    if $error
+        scalar error = 1
+    else
+        print "Info: MPI jobs finished."
+    endif
 end function
 
 
 function bundles parallel_specs (const string usercode "Code to execute",
                                  const bundles ArgBundles "Job arguments",
                                  string name_application_bundle[null] "Bundle to which arguments are passed",
-                                 string name_arg_bundle[null] "Name of bundle holding job arguments",
+                                 string name_argument_bundle[null] "Name of bundle holding job arguments",
                                  const bool debugging[FALSE])
     /* Parallel execution of code. */
 
+    scalar error = 0
     bundles Bout = null
     scalar n_jobs = nelem(ArgBundles)
     string filename_usercode = "PS_script.inp"
@@ -163,34 +172,46 @@ function bundles parallel_specs (const string usercode "Code to execute",
         printf "\nError: Pass some user code.\n"
         return Bout
     endif
-    if n_jobs_exceeds_nproc(n_jobs)     # FIXME: does not print the error
-        return Bout
-    endif
-    if !has_mpi_support()
+
+    n_jobs_exceeds_nproc(n_jobs, &error)
+    has_mpi_support(&error)
+    if error
         return Bout
     endif
 
-    # Create default
+    # Set default values if necessary
     if !exists(name_application_bundle)
-        string name_application_bundle = "Mod"		# TODO: more precise default?
+        string name_application_bundle = "PS_APPLICATION"
     endif
-    if !exists(name_arg_bundle)
-        string name_arg_bundle = "Container"			# TODO: 'Arguments'?
+    if !exists(name_argument_bundle)
+        string name_argument_bundle = "PS_ARGUMENTS"
     endif
 
-    strings filenames_bundles = write_arg_bundles(ArgBundles)
-    if !nelem(filenames_bundles)
+    strings filenames_bundles = write_arg_bundles(ArgBundles, &error)
+    if error
         return Bout
     endif
 
-    scalar err = write_usercode(usercode, filename_usercode)
-    if err
+    write_usercode(usercode, filename_usercode, &error)
+    if error
         return Bout
     endif
 
-    invoke_mpi(n_jobs, filename_usercode, name_application_bundle, name_arg_bundle)
-    display_workers_output(n_jobs, debugging)
+    invoke_mpi(n_jobs, filename_usercode, name_application_bundle, name_argument_bundle, &error)
+    if error
+        return Bout
+    endif
+
+    display_workers_output(n_jobs, debugging, &error)
+    if error
+        return Bout
+    endif
+
     bundles Bout = create_output_array(filenames_bundles, debugging)
+    if error
+        return Bout
+    endif
+
     remove_file(filename_usercode, debugging)
 
     return Bout
