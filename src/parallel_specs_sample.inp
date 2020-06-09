@@ -16,7 +16,7 @@ endif
 
 
 # Select which example to run
-scalar RUN_EXAMPLE = 2    # 1 to 4
+scalar RUN_EXAMPLE = 3    # 1 to 3
 
 
 if RUN_EXAMPLE == 1
@@ -100,39 +100,32 @@ elif RUN_EXAMPLE == 3
     print "open sw_ch14.gdt --preserve" # --preserve needed here!!
     print "list X = LHUR ldiff(PUNEW)"
     print "list Z = const"
-    print "scalar param = argcontainer.my_param"
-    # The 'argcontainer' name  must be announced to parallel_specs.
-    # Name 'my_param' must match the element key in each arg
+    print "scalar param = PS_ARGUMENTS.lag_order"
+    # Name 'lag_order' must match the element key in each arg
     # bundle (below).
 
-    printf "bundle Mod = SVAR_setup(\"C\", X, Z, param)\n"
-    # If the name were not 'Mod' (the default), the name would have to
-    # be announced to parallel_specs as well.
+    printf "bundle PS_APPLICATION = SVAR_setup(\"C\", X, Z, param)\n"
 
-    print "Mod.horizon = 36"
-    printf "SVAR_restrict(&Mod, \"C\", 1, 2)\n"
-    print "SVAR_estimate(&Mod)"
+    print "PS_APPLICATION.horizon = 36"
+    printf "SVAR_restrict(&PS_APPLICATION, \"C\", 1, 2)\n"
+    print "SVAR_estimate(&PS_APPLICATION)"
   end outfile
 
+  string usercode = readfile("code4PS.inp")
   # specify and pack the different variants
-  bundle b1 = defbundle("my_param", 3)
-  # 'my_param' to match the code above
-  bundle b2 = defbundle("my_param", 4)
+  bundle b1 = defbundle("lag_order", 3)
+  # 'lag_order' to match the code above
+  bundle b2 = defbundle("lag_order", 4)
   bundles argarray = defarray(b1, b2)
-  string name_of_central_bundle = "Mod" # redundant, "Mod" is default
-  string name_of_argument_bundle = "argcontainer"	# default would be "Container"
 
   # run in parallel
-  bundles bbresult = parallel_specs(readfile("code4PS.inp"), \
-    argarray, name_of_central_bundle, name_of_argument_bundle)
+  bundles bbresult = parallel_specs(usercode, argarray)
 
   print "main script: eval the bundles we got"
   loop i=1..nelem(bbresult) -q
     eval bbresult[i]
   endloop
 
-
-elif RUN_EXAMPLE == 4
 
   ######## Third example (or 2b) #################################
   /* Uncomment the code portion below to get an impression of the
@@ -141,22 +134,24 @@ elif RUN_EXAMPLE == 4
   in parallel. (Should be roughly the same on two CPU cores.)
   */
 
+  /*
   # reuse the code above
-  string code = readfile("code4PS.inp")
+  string usercode = readfile("code4PS.inp")
   # add the bootstrap call
-  code ~= "numfail = SVAR_boot(&Mod, 2000, 0.90)"
+  usercode ~= "numfail = SVAR_boot(&PS_APPLICATION, 2000, 0.90)"
 
   # run with a single spec
   set stopwatch
   argarray = defarray(b1)
-  bbresult = parallel_specs(code, argarray, , name_of_argument_bundle)
+  bbresult = parallel_specs(usercode, argarray)
   singlespec = $stopwatch
 
   # run with two specs
   argarray = defarray(b1, b2)
-  bbresult = parallel_specs(code, argarray, , name_of_argument_bundle)
+  bbresult = parallel_specs(usercode, argarray)
   twospecs = $stopwatch
 
   printf "Single vs. two specs time: %g, %g\n", singlespec, twospecs
+  */
 
 endif

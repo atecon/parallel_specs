@@ -1,0 +1,94 @@
+Parallel execution of differing specifications
+
+[The package and also this help text are prototypes, preliminary and
+incomplete!]
+
+If you have chunks of hansl code that takes a while to run, and you want to
+run it for different parameter settings, then the parallel_specs package
+might be for you. Without this package you could either (a) run the
+different specifications sequentially, which may take a long time; or you
+could (b) use your OS's command shell to start several gretl processes in
+parallel, which one may call "manual parallelization".
+
+The general idea of this package is that once you specify the different
+parameter combinations in a certain formalized way (by stuffing them in an
+array of so-called gretl bundles), then gretl can leverage the
+parallelization technique MPI to do the rest for you automatically. (If MPI
+is installed on your machine, see the "gretl + MPI" guide available from
+gretl's help menu. Currently the number of MPI threads used is exactly the
+number of user-defined specifications; the behavior with a large number of
+threads is yet untested.)
+
+--------------------
+
+Public function:
+parallel_specs()
+--------------
+Arguments:
+usercode:                   string, The common hansl code to be executed
+ArgumentSets:               bundles, An N-element array of bundles, where
+                            each bundle contains the same types
+                            of elements with exactly the same labels
+                            (but of course with different combinations of
+                            values). The element labels (keys) must match
+                            those used in the code.
+name_application_bundle:    string, Name of the central output bundle in
+                            the user code; the assumed name by default is
+                            "PS_APPLICATION", so if you use that name you
+                            can omit this argument
+name_argument_bundle:       string, Name that is used in the code for the
+                            input bundle that contains the
+                            varying parameters; Optional: the assumed
+                            name if you omit this will be "PS_ARGUMENTS"
+debugging:                  bool, Switch to activate debug mode (optional,
+                            default: 0/False)
+
+Return:
+N-element array of result bundles, where each bundle will have
+the same structure as governed by the common code used.
+--------------------
+
+Rules to write your code for the parallel_specs package:
+
+1. The code must revolve around a "central" bundle which after execution holds everything you want to save or use. This usage of a central bundle is already typical for many existing contributed function packages - the sample script contains an example using the SVAR addon.
+
+How this bundle is called in your code is up to you, but the default name is "PS_APPLICATION"; if you use a different one then you have to announce its name as the third argument to the parallel_specs() function (a string). Of course, you can stuff anything into that bundle, including other bundles, or arrays, and so forth.
+(If your code just wants to print out something and does not save or return anything, you can leave this empty, and implicitly an empty dummy bundle would be internally created.)
+
+2. In your code, you must access those parameters that will be different across the various parallel specifications through (the contents of) another bundle.
+Let's say you have a string parameter 'state', and you want to run two different specifications, one where state=="on", and another one where state=="off". Then in your code you would have to write something like:
+<>
+string state = myargbundle.statespec
+</>
+
+In addition, you would have to announce in the function call that you named this relevant bundle 'myargbundle' (instead of the default 'PS_ARGUMENTS'), by
+passing that string as the fourth argument to parallel_specs().
+
+Also, you would have to make sure that the corresponding members of each argument bundle are really named 'statespec'.
+(In contrast, the name of each argument bundle itself, as passed in the parallel_specs call within a whole array of bundles as the fourth argument, is not important. They could even be anonymous, created on the fly.)
+
+You could in principle also vary your parallel specifications in more than one dimension, because you can of course insert several elements into your argument bundle. So nothing should stop you from having in your code:
+<>
+scalar biascorr = myargbundle.bc
+scalar lagorder = myargbundle.K
+</>
+and then construct your array of argument bundles like this in the meta
+code for parallel_specs:
+<>
+bundle arg1 = defbundle("bc", 0, "K", 2)
+bundle arg2 = defbundle("bc", 1, "K", 3)
+bundle arg3 = defbundle("bc", 0, "K", 3)
+bundle arg4 = defbundle("bc", 1, "K", 2)
+bundles argarray = defarray(arg1, arg2, arg3, arg4)
+</>
+
+3. If you use 'open' in your code, you must add the '--preserve' option, otherwise the internal bundles that are auto-generated by parallel_specs would be deleted, leading to a failure.
+
+4. Your current working directory must be writeable (by you), because parallel_specs works with temporary files.
+
+This package is mainly intended to be run on standard office computers with several (say, 2 to 8) CPU cores. We wouldn't be surprised if it fails on larger computer clusters. On the other hand, as long as the MPI backend is configured and functioning, and as long as the current working directory is properly defined, it might just as well work.
+
+
+Changelog:
+* 0.2 (June 2020): refactored code; added unit-tests; default values change: 'Mod' --> 'PS_APPLICATION', 'Container' --> 'PS_ARGUMENTS'
+* 0.1 (June 2018): initial release
