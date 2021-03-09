@@ -9,14 +9,18 @@ function void test_write_arg_bundles (void)
     print "Start testing write_arg_bundles()"
 
     bundles ArgBundles = null
-    strings ret = write_arg_bundles(ArgBundles)
+    scalar error = 0
+    strings ret = write_arg_bundles(ArgBundles, &error)
     assert_equal_num(nelem(ret), 0)
+    assert_false(error)
 
+    scalar error = 0
     bundle B1 = defbundle("scal", 1, "mat", ones(2,1))
     bundle B2 = defbundle("scal", 2, "mat", ones(2,3))
     bundles ArgBundles = defarray(B1, B2)
-    strings ret = write_arg_bundles(ArgBundles)
+    strings ret = write_arg_bundles(ArgBundles, &error)
 
+    assert_false(error)
     assert_equal_num(nelem(ret), 2)
     assert_equal_str(ret[1], "PS_bundle_1.xml")
     assert_equal_str(ret[2], "PS_bundle_2.xml")
@@ -59,9 +63,10 @@ function void test_write_usercode (void)
 
     string filename = "write_usercode_test.inp"
     string code = "some nice code here\n New line to execute"
+    scalar error = 0
+    write_usercode(code, filename, &error)
 
-    scalar ret = write_usercode(code, filename)
-    assert_false(ret)
+    assert_false(error)
     string code_read = readfile(filename)
     assert_true(strlen(code_read))
 end function
@@ -76,17 +81,17 @@ function void write_user_code (void)
         print "open sw_ch14.gdt --preserve"
         print "list X = LHUR ldiff(PUNEW)"
         print "list Z = const"
-        print "scalar param = Container.my_param"
-        # The 'Container' name  must be announced to parallel_specs.
+        print "scalar param = PS_ARGUMENTS.my_param"
+        # The 'PS_ARGUMENTS' name is the default name which parallel_specs expects.
         # Name 'my_param' must match the element key in each arg
         # bundle (below).
-        printf "bundle Mod = SVAR_setup(\"C\", X, Z, param)\n"
-        print "Mod.horizon = 36"
-        printf "SVAR_restrict(&Mod, \"C\", 1, 2)\n"
-        print "SVAR_estimate(&Mod)"
+        # 'PS_APPLICATION' is also a default name which parallel_specs expects.
+        printf "bundle PS_APPLICATION = SVAR_setup(\"C\", X, Z, param)\n"
+        print "PS_APPLICATION.horizon = 36"
+        printf "SVAR_restrict(&PS_APPLICATION, \"C\", 1, 2)\n"
+        print "SVAR_estimate(&PS_APPLICATION)"
     end outfile
 end function
-
 
 function bundles specify_args_for_sample_code (void)
     bundle b1 = defbundle("my_param", 3)
@@ -98,7 +103,6 @@ function bundles specify_args_for_sample_code (void)
 
     return Results
 end function
-
 
 function void test_sample_output (const bundles Results)
     printf "\n Start testing bundles we've got."
