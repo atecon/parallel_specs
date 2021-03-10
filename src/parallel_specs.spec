@@ -1,7 +1,7 @@
 author = Sven Schreiber, Allin Cottrell, Artur Tarassow
 email = svetosch@gmx.net
-version = 0.2
-date = 2020-06-09
+version = 0.3
+date = 2021-03-09
 description = Parallel execution of differing specifications
 tags = C88
 min-version = 2020b
