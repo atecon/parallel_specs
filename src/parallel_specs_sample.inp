@@ -143,4 +143,6 @@ elif RUN_EXAMPLE == 3
   printf "Single vs. two specs time: %g, %g\n", singlespec, twospecs
   */
 
+  # clean up 
+  remove("code4PS.inp")
 endif
