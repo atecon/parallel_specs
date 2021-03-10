@@ -1,25 +1,34 @@
-function void display_workers_output (const int n_jobs,
-                                      const bool debugging,
+function void display_workers_output (int n_jobs,
+                                      bool debugging,
                                       scalar *error)
     /* Print results of workers. */
 
-    loop i=1..n_jobs -q
-        printf "Info: Output for argument set %d:\n", i
+    loop i = 1..n_jobs -q
+        printf "Info-PS: Output for argument set %d:\n", i
 
         string filename = sprintf("PS_output_%d.txt", i)
-        catch printf "%s", readfile(filename)
+        catch string output = readfile(filename)        
         if $error
             printf "\nError: Cannot read file '%s'.\n", filename
             scalar error = 1
         endif
-
+        
+        ## check if no genuine output exists (just the standard closing line)
+        # This line content is taken from (hardcoded) invoke_mpi:
+        string lastline = sprintf("Info-PS: Computation with arg set %d complete.", i)
+          
+        if strstrip(output) == lastline
+            output = sprintf("[None]\n") ~ output # looks nicer in the printout
+        endif
+        print output
+        
         remove_file(filename, debugging)
     endloop
 end function
 
 
 function void remove_file (const string filename,
-                           const bool debugging)
+                           bool debugging)
     /* Remove temporary output file. */
 
     if !debugging
@@ -32,11 +41,11 @@ end function
 
 
 function bundles create_output_array (const strings filenames_bundles,
-                                      const bool debugging,
+                                      bool debugging,
                                       scalar *error)
     /* Assemble the returned array. */
 
-    print "Info: Assembling bundles for return."
+    print "Info-PS: Assembling bundles for return."
     bundles B = array(nelem(filenames_bundles))
 
     loop foreach i filenames_bundles -q
@@ -64,9 +73,9 @@ function scalar has_mpi_support (void)
 end function
 
 
-function scalar n_jobs_exceeds_nproc (const int n_jobs)
+function scalar n_jobs_exceeds_nproc (int n_jobs)
     /* */
-    # FIXME: Why does this fail? We could loop over subsets of n_jobs
+    # TODO: Why does this fail? We could loop over subsets of n_jobs
     if n_jobs > $sysinfo.nproc
         printf "\nError: Number of bundles passed (%d) exceeds\n\
           available processors (%d), Aborting.", n_jobs, $sysinfo.nproc
@@ -84,7 +93,7 @@ function strings write_arg_bundles (const bundles ArgumentSets,
 
     strings filenames_bundles = array(nelem(ArgumentSets))
 
-    loop i=1..nelem(ArgumentSets) -q
+    loop i = 1..nelem(ArgumentSets) -q
         filenames_bundles[i] = sprintf("PS_bundle_%d.xml", i)
 
         catch bwrite(ArgumentSets[i], filenames_bundles[i])
@@ -101,8 +110,8 @@ end function
 
 
 function void write_usercode (const string usercode,
-                                const string filename_usercode,
-                                scalar *error)
+                              const string filename_usercode,
+                              scalar *error)
     /* Write out script with user's code for execution via MPI. */
 
     catch outfile "@filename_usercode" --quiet
@@ -117,14 +126,14 @@ function void write_usercode (const string usercode,
 end function
 
 
-function void invoke_mpi (const int n_jobs[1::],
+function void invoke_mpi (int n_jobs[1::],
                           const string filename_usercode,
                           const string name_application_bundle,
                           const string name_argument_bundle,
                           scalar *error)
     /* Actualy execution of MPI part. */
 
-    print "Info: Invoking MPI (this could take a while)"
+    print "Info-PS: Invoking MPI (this could take a while)"
     flush
 
     catch mpi
@@ -138,7 +147,7 @@ function void invoke_mpi (const int n_jobs[1::],
             run "@filename_usercode"
 
             # standard closing code
-            printf "\nInfo: Computation with arg set %d complete.\n", process_id
+            printf "\nInfo-PS: Computation with arg set %d complete.\n", process_id
             scalar err = bwrite(@name_application_bundle, bunfile)
             if err
                 printf "Error: %s", errmsg(err)
@@ -149,7 +158,7 @@ function void invoke_mpi (const int n_jobs[1::],
     if $error
         scalar error = 1
     else
-        print "Info: MPI jobs finished."
+        print "Info-PS: MPI jobs finished."
     endif
 end function
 
@@ -158,7 +167,7 @@ function bundles parallel_specs (const string usercode "Code to execute",
                                  const bundles ArgumentSets "Job arguments",
                                  string name_application_bundle[null] "Bundle to which arguments are passed",
                                  string name_argument_bundle[null] "Name of bundle holding job arguments",
-                                 const bool debugging[FALSE])
+                                 bool debugging[FALSE])
     /* Parallel execution of code. */
 
     scalar error = 0

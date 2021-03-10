@@ -1,19 +1,9 @@
-clear
 set verbose off
 
 # Reminder:
 # everything goes into your currently active working dir!
 
-if $sysinfo.hostname == "ati7"
-    set workdir "/home/at/git/parallel_specs"
-endif
-
-catch include "./src/parallel_specs.inp" --force
-if $error
-  include "./parallel_specs.inp" --force
-endif
-#include parallel_specs.gfn --force
-
+include parallel_specs.gfn
 
 # Select which example to run
 scalar RUN_EXAMPLE = 3    # 1 to 3
@@ -27,7 +17,7 @@ if RUN_EXAMPLE == 1
   string appkey = "param"     # key of parameter value used within the application
 
   # step 1: create the script code
-  # Both 'PS_APPLICATION' and 'PS_ARGUMENTS' are argument names which are recommened to be used.
+  # Both 'PS_APPLICATION' and 'PS_ARGUMENTS' are argument names which are the defaults
   string line1 = "bundle PS_APPLICATION"
   string line2 = sprintf("\nPS_APPLICATION.%s = PS_ARGUMENTS.%s\n", appkey, argkey)
   string usercode = line1 ~ line2
@@ -48,9 +38,9 @@ if RUN_EXAMPLE == 1
 
 
 elif RUN_EXAMPLE == 2
-  print "A trivial hello world example (start) with user-specific argument names"
+  print "A hello world example with user-specific argument names"
   /*
-    In this example, we shos how to use your own argument names:
+    In this example, we show how to use your own argument names:
     - 'PS_APPLICATION' is now called 'Mod'
     - 'PS_ARGUMENTS' is now called 'Container'
   */
@@ -77,7 +67,7 @@ elif RUN_EXAMPLE == 2
   loop i=1..nelem(bbresult) -q
     eval bbresult[i]
   endloop
-  print "End of the trivial hello world example"
+  print "End of the hello world example with user-specific argument names"
 
 
 elif RUN_EXAMPLE == 3
@@ -92,7 +82,7 @@ elif RUN_EXAMPLE == 3
 
   /*
   First we create the relevant gretl/hansl script command file.
-  In practice, better to have the file prepared beforehand,
+  (In practice, better to have the file prepared beforehand,
   and not write it inline with all these 'print' commands!)
   */
   outfile code4PS.inp --quiet
@@ -102,19 +92,18 @@ elif RUN_EXAMPLE == 3
     print "list Z = const"
     print "scalar param = PS_ARGUMENTS.lag_order"
     # Name 'lag_order' must match the element key in each arg
-    # bundle (below).
+    # bundle (see below inside b1 and b2).
 
     printf "bundle PS_APPLICATION = SVAR_setup(\"C\", X, Z, param)\n"
 
-    print "PS_APPLICATION.horizon = 36"
+    print  "PS_APPLICATION.horizon = 36"
     printf "SVAR_restrict(&PS_APPLICATION, \"C\", 1, 2)\n"
-    print "SVAR_estimate(&PS_APPLICATION)"
+    print  "SVAR_estimate(&PS_APPLICATION)"
   end outfile
 
   string usercode = readfile("code4PS.inp")
-  # specify and pack the different variants
+  # specify and pack the different variants ('lag_order' matches code above)
   bundle b1 = defbundle("lag_order", 3)
-  # 'lag_order' to match the code above
   bundle b2 = defbundle("lag_order", 4)
   bundles argarray = defarray(b1, b2)
 
@@ -127,9 +116,9 @@ elif RUN_EXAMPLE == 3
   endloop
 
 
-  ######## Third example (or 2b) #################################
+  ######## Fourth example (or 3b) #################################
   /* Uncomment the code portion below to get an impression of the
-  speed gain in the second example, augmented with a bootstrap.
+  speed gain in the example augmented with a bootstrap.
   This compares the speed of a single specification with two ones
   in parallel. (Should be roughly the same on two CPU cores.)
   */
@@ -154,4 +143,6 @@ elif RUN_EXAMPLE == 3
   printf "Single vs. two specs time: %g, %g\n", singlespec, twospecs
   */
 
+  # clean up 
+  remove("code4PS.inp")
 endif
