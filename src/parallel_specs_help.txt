@@ -19,9 +19,8 @@ So a working MPI external software must be explicitly installed on your
 machine, see the excellent "gretl + MPI" guide available from gretl's help
 menu. 
 (Currently the number of MPI threads used is exactly the number of user-
-defined specifications; the behavior with a large number of threads is yet
-untested, but it is unwise to try to run more threads than the given number of
-physical CPU cores. Handling this automatically is on our to-do list.)
+defined specifications, and we disallow running more threads than the given
+number of physical CPU cores. Generalizing this is on our to-do list.)
 
 --------------------------------
 
