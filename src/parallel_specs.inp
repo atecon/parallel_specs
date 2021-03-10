@@ -4,7 +4,7 @@ function void display_workers_output (int n_jobs,
     /* Print results of workers. */
 
     loop i = 1..n_jobs -q
-        printf "PS-Info: Output for argument set %d:\n", i
+        printf "Info-PS: Output for argument set %d:\n", i
 
         string filename = sprintf("PS_output_%d.txt", i)
         catch string output = readfile(filename)        
@@ -15,7 +15,7 @@ function void display_workers_output (int n_jobs,
         
         ## check if no genuine output exists (just the standard closing line)
         # This line content is taken from (hardcoded) invoke_mpi:
-        string lastline = sprintf("PS-Info: Computation with arg set %d complete.", i)
+        string lastline = sprintf("Info-PS: Computation with arg set %d complete.", i)
           
         if strstrip(output) == lastline
             output = sprintf("[None]\n") ~ output # looks nicer in the printout
@@ -45,7 +45,7 @@ function bundles create_output_array (const strings filenames_bundles,
                                       scalar *error)
     /* Assemble the returned array. */
 
-    print "PS-Info: Assembling bundles for return."
+    print "Info-PS: Assembling bundles for return."
     bundles B = array(nelem(filenames_bundles))
 
     loop foreach i filenames_bundles -q
@@ -133,7 +133,7 @@ function void invoke_mpi (int n_jobs[1::],
                           scalar *error)
     /* Actualy execution of MPI part. */
 
-    print "PS-Info: Invoking MPI (this could take a while)"
+    print "Info-PS: Invoking MPI (this could take a while)"
     flush
 
     catch mpi
@@ -147,7 +147,7 @@ function void invoke_mpi (int n_jobs[1::],
             run "@filename_usercode"
 
             # standard closing code
-            printf "\nPS-Info: Computation with arg set %d complete.\n", process_id
+            printf "\nInfo-PS: Computation with arg set %d complete.\n", process_id
             scalar err = bwrite(@name_application_bundle, bunfile)
             if err
                 printf "Error: %s", errmsg(err)
@@ -158,7 +158,7 @@ function void invoke_mpi (int n_jobs[1::],
     if $error
         scalar error = 1
     else
-        print "PS-Info: MPI jobs finished."
+        print "Info-PS: MPI jobs finished."
     endif
 end function
 
